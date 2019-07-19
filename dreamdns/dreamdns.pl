@@ -27,6 +27,9 @@
 # 
 # =CHANGELOG=
 #
+# Daniel Cuche <dcuche(#AT#)dcuche.com>  - 2019-07-19
+#  - Inverted the order for DNS change: First add new IP, then remove previous one.
+#    This fixes an error where the domain zone is not found
 # Fabian Rodriguez <fabian(#AT#)legoutdulibre.com>
 #  - Added details and fixed parameter for test command
 #  - Added capitals, fixed some typos
@@ -323,6 +326,15 @@ sub updateDns($) {
   return $rtrn_val if ($time_to_quit);
 
   #ok, we really do need up update it...
+  #first add the new DNS record
+  logmsg("I: adding new DreamHost dns record for $domain",5);
+  $response = sendDreamhostCmd('dns-add_record',
+    {'record' => $domain, 'type' => 'A', 'value' => $new_ip});
+  unless ($response->{'result'} =~ /^success$/) {
+    logmsg("E: ".$response->{'data'}." encountered during dns-add_record",2);
+    return 1;
+  }
+  #then remove the previous one 
   if (defined($last_ip)) {
     logmsg("I: removing old DreamHost dns record for $domain",5);
     $response = sendDreamhostCmd('dns-remove_record',
@@ -332,14 +344,6 @@ sub updateDns($) {
         " encountered during dns-remove_record",2);
       return 1;
     }
-  }
-  
-  logmsg("I: adding new DreamHost dns record for $domain",5);
-  $response = sendDreamhostCmd('dns-add_record',
-    {'record' => $domain, 'type' => 'A', 'value' => $new_ip});
-  unless ($response->{'result'} =~ /^success$/) {
-    logmsg("E: ".$response->{'data'}." encountered during dns-add_record",2);
-    return 1;
   }
   $last_ip = $new_ip;
   $last_check = time();
